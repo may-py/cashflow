@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign In — CashFlow THB</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:      #0D1117;
+      --surface: #161B22;
+      --surface2:#1C2333;
+      --border:  #2A3347;
+      --green:   #00C48C;
+      --red:     #FF5252;
+      --blue:    #4A90D9;
+      --amber:   #FFB547;
+      --text:    #CDD9F0;
+      --muted:   #6B7A99;
+      --font:    'Sora', sans-serif;
+      --mono:    'DM Mono', monospace;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      /* subtle grid pattern */
+      background-image:
+        linear-gradient(rgba(42,51,71,.35) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(42,51,71,.35) 1px, transparent 1px);
+      background-size: 40px 40px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 400px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 2.5rem 2rem;
+      box-shadow: 0 24px 64px rgba(0,0,0,.5);
+    }
+
+    /* Logo */
+    .logo {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    .logo-text {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: .06em;
+      color: #fff;
+    }
+    .logo-text span { color: var(--green); }
+    .logo-sub {
+      font-size: .7rem;
+      color: var(--amber);
+      font-weight: 400;
+      letter-spacing: .08em;
+      margin-left: .3rem;
+    }
+    .logo-tagline {
+      font-size: .72rem;
+      color: var(--muted);
+      margin-top: .4rem;
+      letter-spacing: .04em;
+    }
+
+    /* Form */
+    h1 {
+      font-size: .9rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 1.5rem;
+      text-align: center;
+    }
+
+    .field { margin-bottom: 1.1rem; }
+
+    label {
+      display: block;
+      font-size: .72rem;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      color: var(--muted);
+      margin-bottom: .4rem;
+    }
+
+    input[type="text"],
+    input[type="password"] {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: .65rem .9rem;
+      font-family: var(--mono);
+      font-size: .88rem;
+      color: var(--text);
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    input[type="text"]:focus,
+    input[type="password"]:focus {
+      border-color: var(--green);
+      box-shadow: 0 0 0 3px rgba(0,196,140,.12);
+    }
+
+    .btn-login {
+      width: 100%;
+      margin-top: 1.5rem;
+      padding: .75rem;
+      background: var(--green);
+      color: #0D1117;
+      border: none;
+      border-radius: 8px;
+      font-family: var(--font);
+      font-size: .88rem;
+      font-weight: 700;
+      letter-spacing: .04em;
+      cursor: pointer;
+      transition: opacity .15s, transform .1s;
+    }
+    .btn-login:hover   { opacity: .88; }
+    .btn-login:active  { transform: scale(.98); }
+
+    /* Error messages */
+    .errors {
+      background: rgba(255,82,82,.08);
+      border: 1px solid rgba(255,82,82,.3);
+      border-radius: 8px;
+      padding: .75rem 1rem;
+      margin-bottom: 1.2rem;
+    }
+    .errors li {
+      list-style: none;
+      font-size: .8rem;
+      color: var(--red);
+      padding: .1rem 0;
+    }
+    .errors li::before { content: '⚠ '; }
+
+    /* Footer note */
+    .footer-note {
+      text-align: center;
+      font-size: .68rem;
+      color: var(--muted);
+      margin-top: 1.8rem;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+
+<div class="card">
+
+  <div class="logo">
+    <div class="logo-text">CASH<span>FLOW</span><span class="logo-sub">THB</span></div>
+    <div class="logo-tagline">Projection Dashboard</div>
+  </div>
+
+  <h1>Sign in to continue</h1>
+
+  <form method="post" action="{% url 'login' %}">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+    <ul class="errors">
+      {% for error in form.non_field_errors %}
+      <li>{{ error }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    <div class="field">
+      <label for="id_username">Username</label>
+      <input
+        type="text"
+        id="id_username"
+        name="username"
+        value="{{ form.username.value|default:'' }}"
+        autocomplete="username"
+        autofocus
+        placeholder="Enter your username"
+      />
+      {% if form.username.errors %}
+      <ul class="errors" style="margin-top:.4rem;margin-bottom:0;">
+        {% for e in form.username.errors %}<li>{{ e }}</li>{% endfor %}
+      </ul>
+      {% endif %}
+    </div>
+
+    <div class="field">
+      <label for="id_password">Password</label>
+      <input
+        type="password"
+        id="id_password"
+        name="password"
+        autocomplete="current-password"
+        placeholder="Enter your password"
+      />
+    </div>
+
+    <!-- Preserve the ?next= redirect param -->
+    {% if next %}
+    <input type="hidden" name="next" value="{{ next }}" />
+    {% endif %}
+
+    <button type="submit" class="btn-login">Sign In →</button>
+  </form>
+
+  <div class="footer-note">
+    Contact your administrator to get access.
+  </div>
+
+</div>
+
+</body>
+</html>

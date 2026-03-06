@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+{% load humanize %}
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cash Flow — THB</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg:      #0D1117; --surface: #161B22; --surface2: #1C2333;
+      --border:  #2A3347; --green:   #00C48C; --red:      #FF5252;
+      --blue:    #4A90D9; --amber:   #FFB547; --text:     #CDD9F0;
+      --muted:   #6B7A99; --font:    'Sora', sans-serif; --mono: 'DM Mono', monospace;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh; }
+
+    /* Header */
+    header {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 0 2rem; height: 60px; display: flex; align-items: center;
+      justify-content: space-between; position: sticky; top: 0; z-index: 100;
+    }
+    .logo { font-size: 1rem; font-weight: 700; letter-spacing: .05em; color: #fff; }
+    .logo span { color: var(--green); }
+    .logo sub { font-size: .65rem; color: var(--amber); font-weight: 400; margin-left: .3rem; letter-spacing: .04em; }
+    .header-actions { display: flex; gap: .6rem; }
+    .btn {
+      display: inline-flex; align-items: center; gap: .35rem;
+      padding: .38rem .85rem; border-radius: 6px; font-family: var(--font);
+      font-size: .78rem; font-weight: 600; cursor: pointer;
+      border: 1px solid transparent; text-decoration: none;
+      transition: opacity .15s, transform .1s;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn-ghost { background: transparent; border-color: var(--border); color: var(--text); }
+    .btn-ghost:hover { border-color: var(--blue); color: var(--blue); }
+
+    /* Main */
+    main { max-width: 1500px; margin: 0 auto; padding: 1.5rem 2rem; }
+
+    /* Filter bar */
+    .filter-bar {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 1rem 1.5rem;
+      display: flex; flex-wrap: wrap; gap: 1.2rem; align-items: flex-end;
+      margin-bottom: 1.5rem;
+    }
+    .fg { display: flex; flex-direction: column; gap: .3rem; }
+    .fg label { font-size: .7rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+    .fg input[type="date"], .fg select, .fg input[type="number"] {
+      background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+      border-radius: 6px; padding: .38rem .7rem; font-family: var(--mono);
+      font-size: .83rem; outline: none; transition: border-color .2s;
+    }
+    .fg input:focus, .fg select:focus { border-color: var(--blue); }
+    .fg select option { background: var(--surface2); }
+
+    /* pivot group pill */
+    .group-pill {
+      display: flex; align-items: center; gap: .5rem;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 6px; padding: .2rem .4rem .2rem .7rem;
+    }
+    .group-pill span { font-size: .78rem; color: var(--muted); white-space: nowrap; }
+    .group-pill input {
+      background: transparent; border: none; color: var(--amber);
+      font-family: var(--mono); font-size: .95rem; font-weight: 500;
+      width: 3.5rem; outline: none; text-align: center;
+    }
+    .group-pill .unit { font-size: .72rem; color: var(--muted); }
+
+    .shortcut-btns { display: flex; gap: .3rem; }
+    .sc {
+      padding: .2rem .55rem; border-radius: 4px; font-size: .72rem;
+      font-weight: 600; cursor: pointer; border: 1px solid var(--border);
+      background: transparent; color: var(--muted); font-family: var(--font);
+      transition: all .15s;
+    }
+    .sc:hover { border-color: var(--amber); color: var(--amber); }
+
+    .apply-btn {
+      background: var(--blue); color: #fff; border: none; border-radius: 6px;
+      padding: .42rem 1.2rem; font-family: var(--font); font-size: .83rem;
+      font-weight: 600; cursor: pointer; transition: opacity .15s;
+    }
+    .apply-btn:hover { opacity: .85; }
+
+    /* Company toggle */
+    .company-toggle { display: flex; gap: .3rem; }
+    .ctab {
+      padding: .3rem .8rem; border-radius: 6px; font-size: .78rem; font-weight: 600;
+      cursor: pointer; border: 1px solid var(--border); background: transparent;
+      color: var(--muted); font-family: var(--font); transition: all .15s;
+    }
+    .ctab.active { background: var(--surface2); border-color: var(--green); color: var(--green); }
+
+    /* KPI row */
+    .kpi-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
+    .kpi-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 1.1rem 1.4rem; position: relative; overflow: hidden;
+    }
+    .kpi-card::before { content:''; position:absolute; top:0; left:0; width:3px; height:100%; background:var(--accent); }
+    .kpi-card.green { --accent: var(--green); }
+    .kpi-card.red   { --accent: var(--red); }
+    .kpi-card.blue  { --accent: var(--blue); }
+    .kpi-label { font-size: .68rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: .4rem; }
+    .kpi-value { font-family: var(--mono); font-size: 1.6rem; font-weight: 500; line-height: 1; }
+    .kpi-card.green .kpi-value { color: var(--green); }
+    .kpi-card.red   .kpi-value { color: var(--red); }
+    .kpi-card.blue  .kpi-value { color: var(--blue); }
+    .kpi-sub { font-size: .68rem; color: var(--muted); margin-top: .3rem; }
+
+    /* Cards */
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 1rem; }
+    .card-head {
+      padding: .9rem 1.2rem; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .card-title { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+    .chart-wrap { height: 280px; padding: 1rem; }
+
+    /* Pivot table */
+    .pivot-scroll { overflow-x: auto; max-height: 320px; overflow-y: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+    thead { position: sticky; top: 0; z-index: 2; }
+    thead th {
+      background: var(--surface2); padding: .6rem .9rem;
+      font-size: .68rem; text-transform: uppercase; letter-spacing: .07em;
+      color: var(--muted); white-space: nowrap; text-align: right;
+    }
+    thead th:first-child { text-align: left; }
+    tbody td { padding: .55rem .9rem; border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: .8rem; white-space: nowrap; text-align: right; }
+    tbody td:first-child { text-align: left; font-family: var(--font); font-size: .78rem; }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: rgba(74,144,217,.05); cursor: pointer; }
+    tbody tr.total-row td { background: var(--surface2); font-weight: 600; }
+
+    .amt-pos { color: var(--green); }
+    .amt-neg { color: var(--red); }
+    .amt-run { color: var(--blue); font-weight: 500; }
+
+    /* Detail table full-width */
+    .detail-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: visible; position: relative; }
+    .detail-head { padding: .9rem 1.2rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; border-radius: 10px 10px 0 0; overflow: visible; position: relative; z-index: 50; }
+    .tabs { display: flex; gap: .25rem; }
+    .tab {
+      padding: .32rem .85rem; border-radius: 6px; font-size: .75rem; font-weight: 600;
+      cursor: pointer; border: 1px solid var(--border); background: transparent;
+      color: var(--muted); font-family: var(--font); transition: all .15s;
+    }
+    .tab.active-tab { background: var(--surface2); border-color: var(--blue); color: var(--text); }
+    .tab-panel { display: none; } .tab-panel.active { display: block; }
+    .detail-scroll { overflow-x: auto; max-height: 420px; overflow-y: auto; }
+
+    /* Detail table: auto layout so visible columns redistribute width dynamically */
+    .detail-scroll table {
+      table-layout: auto;
+      width: 100%;
+    }
+    .detail-scroll thead th {
+      white-space: nowrap;   /* keep headers on one line */
+    }
+    .detail-scroll tbody td {
+      white-space: nowrap;
+    }
+    /* When a th/td is hidden, browser fully removes it from layout */
+    .detail-scroll th[style*="display: none"],
+    .detail-scroll td[style*="display: none"] { padding: 0; }
+
+    .tag { display:inline-block; padding:.12rem .45rem; border-radius:4px; font-size:.68rem; font-weight:600; letter-spacing:.04em; }
+    .tag-ar { background:rgba(0,196,140,.12); color:var(--green); }
+    .tag-ap { background:rgba(255,82,82,.12); color:var(--red); }
+    .tag-c1 { background:rgba(74,144,217,.15); color:var(--blue); font-size:.65rem; padding:.08rem .35rem; border-radius:3px; }
+    .tag-c2 { background:rgba(255,181,71,.15); color:var(--amber); font-size:.65rem; padding:.08rem .35rem; border-radius:3px; }
+
+    /* Sortable column headers */
+    .detail-scroll thead th { user-select: none; }
+    .detail-scroll thead th:hover { color: var(--text); background: #222d42; }
+    .sort-icon { font-size: .65rem; color: var(--muted); margin-left: .2rem; transition: color .15s; }
+    th.sort-asc  .sort-icon { color: var(--green); }
+    th.sort-desc .sort-icon { color: var(--amber); }
+    th.sort-asc  .sort-icon::after { content: ' ▲'; }
+    th.sort-desc .sort-icon::after { content: ' ▼'; }
+    th.sort-asc  .sort-icon, th.sort-desc .sort-icon { font-size: 0; } /* hide ⇅ when sorted */
+    tr.partner-group-hdr { background: var(--surface2) !important; cursor: pointer; }
+    tr.partner-group-hdr:hover td { background: rgba(255,181,71,.06); }
+    tr.partner-group-hdr td { border-bottom: 1px solid var(--border); }
+
+    /* Partner search dropdown */
+    .pdrop-item {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: .5rem 1rem; cursor: pointer; gap: 1rem;
+      border-bottom: 1px solid var(--border); transition: background .1s;
+    }
+    .pdrop-item:last-child { border-bottom: none; }
+    .pdrop-item:hover { background: rgba(74,144,217,.1); }
+    #partner-search:focus { border-color: var(--green); }
+
+    .chart-skeleton {
+      position:absolute; inset:0;
+      background: linear-gradient(90deg, var(--surface2) 25%, #1e2840 50%, var(--surface2) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: 6px;
+    }
+    @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+    .chart-status { font-size:.7rem; color:var(--muted); font-family:var(--mono); }
+
+    .error-banner { background:rgba(255,82,82,.1); border:1px solid rgba(255,82,82,.3); color:var(--red); border-radius:8px; padding:1rem 1.5rem; margin-bottom:1.5rem; font-size:.9rem; }
+    .empty { text-align:center; padding:3rem; color:var(--muted); }
+
+    @media(max-width:900px) {
+      .kpi-row { grid-template-columns: 1fr 1fr; }
+      main { padding: 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">CASH<span>FLOW</span><sub>THB</sub></div>
+  <div class="header-actions">
+    <a id="xl-link" href="{% url 'cashflow:export_excel' %}?date_from={{ date_from }}&date_to={{ date_to }}&company={{ company }}&group_days={{ group_days }}" class="btn btn-ghost">↓ Excel</a>
+    <a id="pdf-link" href="{% url 'cashflow:export_pdf' %}?date_from={{ date_from }}&date_to={{ date_to }}&company={{ company }}&group_days={{ group_days }}" class="btn btn-ghost">↓ PDF</a>
+    <a id="api-link" href="{% url 'cashflow:api' %}?date_from={{ date_from }}&date_to={{ date_to }}&company={{ company }}&group_days={{ group_days }}" class="btn btn-ghost" target="_blank">{ } API</a>
+    <span style="font-size:.72rem;color:var(--muted);padding:0 .4rem;">{{ request.user.get_username }}</span>
+    <form method="post" action="{% url 'logout' %}" style="display:inline;">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-ghost" style="color:var(--red);border-color:rgba(255,82,82,.3);">Sign Out</button>
+    </form>
+  </div>
+</header>
+
+<main>
+
+  {% if error %}<div class="error-banner">⚠ {{ error }}</div>{% endif %}
+
+  <!-- Filter bar -->
+  <form method="get" id="filter-form" class="filter-bar">
+    <div class="fg">
+      <label>From</label>
+      <input type="date" name="date_from" value="{{ date_from }}" />
+    </div>
+    <div class="fg">
+      <label>To</label>
+      <input type="date" name="date_to" value="{{ date_to }}" />
+    </div>
+
+    <!-- Company filter -->
+    <div class="fg">
+      <label>Company</label>
+      <div class="company-toggle">
+        <button type="button" class="ctab {% if company == 'all' %}active{% endif %}" onclick="setCompany('all', this)">KOB + BTV</button>
+        <button type="button" class="ctab {% if company == '1' %}active{% endif %}" onclick="setCompany('1', this)">KOB</button>
+        <button type="button" class="ctab {% if company == '2' %}active{% endif %}" onclick="setCompany('2', this)">BTV</button>
+        <input type="hidden" name="company" id="company-input" value="{{ company }}" />
+      </div>
+    </div>
+
+    <!-- Pivot group size -->
+    <div class="fg">
+      <label>Group Period</label>
+      <div style="display:flex; flex-direction:column; gap:.3rem;">
+        <div class="group-pill">
+          <span>Every</span>
+          <input type="number" name="group_days" id="group-days-input" value="{{ group_days }}" min="1" max="365" />
+          <span class="unit">days</span>
+        </div>
+        <div class="shortcut-btns">
+          <button type="button" class="sc" onclick="setDays(1)">Day</button>
+          <button type="button" class="sc" onclick="setDays(7)">Week</button>
+          <button type="button" class="sc" onclick="setDays(14)">2W</button>
+          <button type="button" class="sc" onclick="setDays(30)">Month</button>
+        </div>
+      </div>
+    </div>
+
+    <button type="submit" class="apply-btn">Apply</button>
+
+    <!-- Opening balance — passed to projection for real running balance -->
+    <div class="fg" style="margin-left:auto;">
+      <label>Opening Balance (฿ THB)</label>
+      <input type="number" name="opening_balance" id="opening-balance-input"
+             value="{{ opening_balance }}" step="0.01" placeholder="0.00"
+             style="background:var(--surface2);border:1px solid var(--blue);color:var(--text);
+                    border-radius:6px;padding:.38rem .7rem;font-family:var(--mono);font-size:.85rem;
+                    width:160px;outline:none;" />
+    </div>
+  </form>
+
+  {% if projection %}
+
+  <!-- KPI cards -->
+  <div class="kpi-row">
+    <div class="kpi-card blue">
+      <div class="kpi-label">Opening Balance</div>
+      <div class="kpi-value">฿ {{ opening_balance|floatformat:2|intcomma }}</div>
+      <div class="kpi-sub">Starting cash · THB</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-label">Total Inflows</div>
+      <div class="kpi-value">฿ {{ projection.total_inflow_thb|floatformat:2|intcomma }}</div>
+      <div class="kpi-sub">Receivables (AR) · THB</div>
+    </div>
+    <div class="kpi-card red">
+      <div class="kpi-label">Total Outflows</div>
+      <div class="kpi-value">฿ {{ projection.total_outflow_thb|floatformat:2|intcomma }}</div>
+      <div class="kpi-sub">Payables (AP) · THB</div>
+    </div>
+    <div class="kpi-card {% if projection.closing_balance_thb >= 0 %}green{% else %}red{% endif %}">
+      <div class="kpi-label">Closing Balance</div>
+      <div class="kpi-value">฿ {{ projection.closing_balance_thb|floatformat:2|intcomma }}</div>
+      <div class="kpi-sub">Opening + Net · THB</div>
+    </div>
+  </div>
+
+  <!-- Single chart — type adapts to group_days (day/week/month) -->
+  <div class="card" style="margin-bottom:1rem;">
+    <div class="card-head">
+      <span class="card-title" id="cfChart-title">Cash Flow Timeline (THB)</span>
+      <span id="cfChart-status" class="chart-status">Loading…</span>
+    </div>
+    <div class="chart-wrap" style="height:280px;padding:1rem;position:relative;">
+      <div id="cfChart-skeleton" class="chart-skeleton"></div>
+      <canvas id="cfChart" style="display:none;"></canvas>
+    </div>
+  </div>
+
+  <!-- Pivot table -->
+  <div class="card" style="margin-bottom:1rem;">
+    <div class="card-head">
+      <span class="card-title">Pivot Table — {{ group_days }}-Day Buckets · THB</span>
+      <span style="font-size:.72rem;color:var(--muted);">Click row to filter detail ↓</span>
+    </div>
+    <div class="pivot-scroll">
+      <table id="pivot-table">
+        <thead>
+          <tr>
+            <th style="text-align:left">Period</th>
+            <th>Inflow (฿)</th>
+            <th>Outflow (฿)</th>
+            <th>Net (฿)</th>
+            <th>Running Balance (฿)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in pivot %}
+          <tr data-period="{{ p.period_label }}" onclick="filterDetail('{{ p.period_label|escapejs }}')">
+            <td>{{ p.period_label }}</td>
+            <td class="amt-pos">{{ p.inflow_thb|floatformat:2|intcomma }}</td>
+            <td class="amt-neg">{{ p.outflow_thb|floatformat:2|intcomma }}</td>
+            <td class="{% if p.net_thb >= 0 %}amt-pos{% else %}amt-neg{% endif %}">{{ p.net_thb|floatformat:2|intcomma }}</td>
+            <td class="{% if p.running_thb >= 0 %}amt-run{% else %}amt-neg{% endif %}">{{ p.running_thb|floatformat:2|intcomma }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5"><div class="empty">No data.</div></td></tr>
+          {% endfor %}
+          {% if pivot %}
+          <tr class="total-row">
+            <td>TOTAL</td>
+            <td class="amt-pos">{{ projection.total_inflow_thb|floatformat:2|intcomma }}</td>
+            <td class="amt-neg">{{ projection.total_outflow_thb|floatformat:2|intcomma }}</td>
+            <td class="{% if projection.net_position_thb >= 0 %}amt-pos{% else %}amt-neg{% endif %}">{{ projection.net_position_thb|floatformat:2|intcomma }}</td>
+            <td class="amt-run">—</td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Detail table -->
+  <div class="detail-card">
+
+    <!-- Detail header: title + controls -->
+    <div class="detail-head" style="flex-wrap:wrap;gap:.6rem;">
+      <div style="display:flex;align-items:center;gap:.8rem;">
+        <span class="card-title" id="detail-title">All Transactions</span>
+        <span id="detail-badge" style="font-size:.7rem;color:var(--amber);display:none;">period filter active</span>
+        <span id="partner-badge" style="font-size:.7rem;color:var(--green);display:none;">partner filter active</span>
+      </div>
+      <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;">
+
+        <!-- Partner search filter -->
+        <div style="position:relative;" id="partner-filter-wrap">
+          <input
+            id="partner-search"
+            type="text"
+            placeholder="🔍 Filter partner…"
+            autocomplete="off"
+            style="background:var(--surface2);border:1px solid var(--border);color:var(--text);
+                   border-radius:6px;padding:.35rem .7rem;font-family:var(--mono);font-size:.8rem;
+                   outline:none;width:200px;transition:border-color .2s;"
+            oninput="onPartnerSearch(this.value)"
+            onfocus="showDropdown()"
+          />
+          <div id="partner-dropdown"
+               style="display:none;position:absolute;top:110%;left:0;min-width:260px;max-height:280px;
+                      overflow-y:auto;background:var(--surface2);border:1px solid var(--border);
+                      border-radius:8px;z-index:200;box-shadow:0 8px 32px rgba(0,0,0,.4);">
+            <div id="partner-list"></div>
+          </div>
+        </div>
+
+        <button class="sc" id="clear-partner-btn" onclick="clearPartnerFilter()" style="display:none;">✕ Partner</button>
+        <button class="sc" onclick="clearFilter()" id="clear-btn" style="display:none;">✕ Period</button>
+
+        <!-- Expand / Collapse All (only visible when grouped) -->
+        <button class="sc" id="expand-all-btn"   onclick="expandAll()"   style="display:none;">▾ Expand All</button>
+        <button class="sc" id="collapse-all-btn" onclick="collapseAll()" style="display:none;">▸ Collapse All</button>
+
+        <!-- Column visibility picker -->
+        <div style="position:relative;">
+          <button class="sc" id="col-picker-btn" onclick="toggleColPicker()" title="Show/hide columns">⊟ Columns</button>
+          <div id="col-picker"
+               style="display:none;position:fixed;min-width:200px;
+                      background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+                      z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.6);padding:.5rem 0;">
+            <div style="padding:.4rem 1rem;font-size:.65rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);border-bottom:1px solid var(--border);margin-bottom:.25rem;">Show / Hide Columns</div>
+            <!-- checkboxes injected by JS -->
+            <div id="col-picker-list"></div>
+            <div style="padding:.5rem 1rem;border-top:1px solid var(--border);margin-top:.25rem;display:flex;gap:.5rem;">
+              <button class="sc" style="font-size:.7rem;" onclick="setAllCols(true)">Show All</button>
+              <button class="sc" style="font-size:.7rem;" onclick="setAllCols(false)">Hide All</button>
+            </div>
+          </div>
+        </div>
+
+        <button class="sc" id="group-btn" onclick="toggleGroupBy()">⊞ Group by Partner</button>
+        <div class="tabs">
+          <button class="tab active-tab" onclick="showTab('all',this)">All</button>
+          <button class="tab" onclick="showTab('ar',this)">AR</button>
+          <button class="tab" onclick="showTab('ap',this)">AP</button>
+        </div>
+      </div>
+    </div>
+
+    {% for panel_id, panel_type in panels %}
+    <div id="panel-{{ panel_id }}" class="tab-panel {% if panel_id == 'all' %}active{% endif %}">
+      <div class="detail-scroll">
+        <table id="tbl-{{ panel_id }}">
+          <thead><tr>
+            <th data-col="partner" data-sort="partner" style="text-align:left;cursor:pointer;" onclick="sortTable(this,'{{ panel_id }}')">Partner <span class="sort-icon">⇅</span></th>
+            <th data-col="period"  data-sort="period"  style="text-align:left;cursor:pointer;" onclick="sortTable(this,'{{ panel_id }}')">Period <span class="sort-icon">⇅</span></th>
+            <th data-col="due"     data-sort="due"     style="text-align:left;cursor:pointer;" onclick="sortTable(this,'{{ panel_id }}')">Due Date <span class="sort-icon">⇅</span></th>
+            {% if panel_id == 'all' %}<th data-col="type" data-sort="type" style="text-align:left;cursor:pointer;" onclick="sortTable(this,'{{ panel_id }}')">Type <span class="sort-icon">⇅</span></th>{% endif %}
+            <th data-col="co"      data-sort="co"      style="text-align:left;cursor:pointer;" onclick="sortTable(this,'{{ panel_id }}')">Co. <span class="sort-icon">⇅</span></th>
+            <th data-col="entry"   data-sort="entry"   style="text-align:left;cursor:pointer;" onclick="sortTable(this,'{{ panel_id }}')">Entry Ref <span class="sort-icon">⇅</span></th>
+            <th data-col="journal" data-sort="journal"  style="text-align:left;cursor:pointer;" onclick="sortTable(this,'{{ panel_id }}')">Journal Entry <span class="sort-icon">⇅</span></th>
+            <th data-col="cur"     data-sort="cur"     style="text-align:right;cursor:pointer;" onclick="sortTable(this,'{{ panel_id }}')">Orig. Currency <span class="sort-icon">⇅</span></th>
+            <th data-col="inflow"  data-sort="inflow"  style="text-align:right;cursor:pointer;" onclick="sortTable(this,'{{ panel_id }}')">Inflow (฿) <span class="sort-icon">⇅</span></th>
+            <th data-col="outflow" data-sort="outflow" style="text-align:right;cursor:pointer;" onclick="sortTable(this,'{{ panel_id }}')">Outflow (฿) <span class="sort-icon">⇅</span></th>
+            <th data-col="amount"  data-sort="amount"  style="text-align:right;cursor:pointer;" onclick="sortTable(this,'{{ panel_id }}')">Amount (฿ THB) <span class="sort-icon">⇅</span></th>
+          </tr></thead>
+          <tbody id="tbody-{{ panel_id }}">
+          {% for p in pivot %}
+            {% for line in p.lines %}
+              {% if panel_id == 'all' or panel_id == 'ar' and line.line_type == 'receivable' or panel_id == 'ap' and line.line_type == 'payable' %}
+              <tr class="detail-row"
+                  data-period="{{ p.period_label|escapejs }}"
+                  data-partner="{{ line.partner|escapejs }}"
+                  data-type="{{ line.line_type }}"
+                  data-company="{{ line.company_id }}"
+                  data-amount="{{ line.amount_thb }}"
+                  data-due="{{ line.due_date|date:'Y-m-d'|default:'' }}"
+                  data-val="{{ line.amount_thb }}">
+                <td data-col="partner">{{ line.partner }}</td>
+                <td data-col="period">{{ p.period_label }}</td>
+                <td data-col="due">{{ line.due_date|date:"d M Y"|default:"—" }}</td>
+                {% if panel_id == 'all' %}
+                <td data-col="type">{% if line.line_type == 'receivable' %}<span class="tag tag-ar">AR</span>{% else %}<span class="tag tag-ap">AP</span>{% endif %}</td>
+                {% endif %}
+                <td data-col="co">{% if line.company_id == 1 %}<span class="tag-c1">KOB</span>{% else %}<span class="tag-c2">BTV</span>{% endif %}</td>
+                <td data-col="entry">{{ line.entry_ref }}</td>
+                <td data-col="journal">{{ line.move_ref }}</td>
+                <td data-col="cur" style="text-align:right">{{ line.currency }}</td>
+                <td data-col="inflow"  class="amt-pos">{% if line.amount_thb >= 0 %}{{ line.amount_thb|floatformat:2|intcomma }}{% endif %}</td>
+                <td data-col="outflow" class="amt-neg">{% if line.amount_thb < 0 %}{{ line.amount_thb|floatformat:2|intcomma }}{% endif %}</td>
+                <td data-col="amount"  class="{% if line.amount_thb >= 0 %}amt-pos{% else %}amt-neg{% endif %}">{{ line.amount_thb|floatformat:2|intcomma }}</td>
+              </tr>
+              {% endif %}
+            {% endfor %}
+          {% empty %}
+          <tr><td colspan="11"><div class="empty">No data.</div></td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endfor %}
+
+  </div><!-- detail-card -->
+
+  {% else %}
+  <div class="empty"><p>No projection data. Configure Odoo connection in settings.py.</p></div>
+  {% endif %}
+
+</main>
+
+<script>
+// ── Chart — async fetch, renders after page paints ────────────────────────────
+const GROUP_DAYS = {{ group_days }};
+
+function chartTitle() {
+  if (GROUP_DAYS === 1)  return 'Daily Cash Flow (THB)';
+  if (GROUP_DAYS === 7)  return 'Weekly Cash Flow (THB)';
+  if (GROUP_DAYS === 30) return 'Monthly Cash Flow (THB)';
+  return `Cash Flow — ${GROUP_DAYS}-Day Groups (THB)`;
+}
+
+function buildChart(pivot) {
+  const canvas = document.getElementById('cfChart');
+  if (!canvas || !pivot.length) {
+    const s = document.getElementById('cfChart-status');
+    if (s) s.textContent = 'No data';
+    return;
+  }
+
+  const labels   = pivot.map(p => p.period);
+  const inflows  = pivot.map(p => p.inflow_thb);
+  const outflows = pivot.map(p => Math.abs(p.outflow_thb));
+  const running  = pivot.map(p => p.running_thb);
+  const big      = labels.length > 25;
+
+  // Update chart title
+  const titleEl = document.getElementById('cfChart-title');
+  if (titleEl) titleEl.textContent = chartTitle();
+
+  const datasets = big ? [
+    { type:'line', label:'Inflows',         data:inflows,  borderColor:'#00C48C', backgroundColor:'rgba(0,196,140,.08)', borderWidth:1.5, pointRadius:0, fill:true,  tension:0 },
+    { type:'line', label:'Outflows',        data:outflows, borderColor:'#FF5252', backgroundColor:'rgba(255,82,82,.08)', borderWidth:1.5, pointRadius:0, fill:true,  tension:0 },
+    { type:'line', label:'Running Balance', data:running,  borderColor:'#4A90D9', backgroundColor:'rgba(74,144,217,.1)', borderWidth:2,   pointRadius:0, fill:false, tension:0 },
+  ] : [
+    { type:'bar',  label:'Inflows',         data:inflows,  backgroundColor:'rgba(0,196,140,.5)', borderColor:'#00C48C', borderWidth:1, borderRadius:2 },
+    { type:'bar',  label:'Outflows',        data:outflows, backgroundColor:'rgba(255,82,82,.5)', borderColor:'#FF5252', borderWidth:1, borderRadius:2 },
+    { type:'line', label:'Running Balance', data:running,  borderColor:'#4A90D9', backgroundColor:'rgba(74,144,217,.08)', borderWidth:2, pointRadius:3, fill:true, tension:.35 },
+  ];
+
+  // Hide skeleton, show canvas
+  const skel = document.getElementById('cfChart-skeleton');
+  if (skel) skel.style.display = 'none';
+  canvas.style.display = '';
+
+  new Chart(canvas.getContext('2d'), {
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: false,
+      interaction: { mode:'index', intersect:false },
+      plugins: {
+        legend: { labels:{ color:'#6B7A99', font:{family:'Sora',size:10}, boxWidth:10, padding:12 } },
+        tooltip: {
+          backgroundColor:'#1C2333', borderColor:'#2A3347', borderWidth:1,
+          titleColor:'#CDD9F0', bodyColor:'#6B7A99',
+          callbacks: { label: c => ` ${c.dataset.label}: ฿${Number(c.parsed.y).toLocaleString(undefined,{minimumFractionDigits:2})}` },
+        },
+      },
+      scales: {
+        x: { grid:{color:'rgba(42,51,71,.4)'}, ticks:{color:'#6B7A99',font:{family:'DM Mono',size:9},maxRotation:45,maxTicksLimit:16,autoSkip:true} },
+        y: { grid:{color:'rgba(42,51,71,.4)'}, ticks:{color:'#6B7A99',font:{family:'DM Mono',size:9},callback:v=>'฿'+Number(v).toLocaleString()} },
+      },
+    },
+  });
+
+  const s = document.getElementById('cfChart-status');
+  if (s) s.textContent = labels.length + ' periods';
+}
+
+// Build API URL from current page params
+function chartApiUrl() {
+  const p = new URLSearchParams(window.location.search);
+  if (!p.has('group_days'))      p.set('group_days',      '{{ group_days }}');
+  if (!p.has('opening_balance')) p.set('opening_balance', '{{ opening_balance }}');
+  return "{% url 'cashflow:api' %}?" + p.toString();
+}
+
+// Fetch after DOM ready so the page paints first
+window.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => {
+    fetch(chartApiUrl())
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then(json => { if (json.error) throw new Error(json.error); buildChart(json.pivot || []); })
+      .catch(err => {
+        console.error('Chart error:', err);
+        const s = document.getElementById('cfChart-status');
+        if (s) { s.textContent = 'Failed to load'; s.style.color = '#FF5252'; }
+        const skel = document.getElementById('cfChart-skeleton');
+        if (skel) skel.style.background = 'rgba(255,82,82,.08)';
+      });
+  }, 50);
+});
+
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let activePeriod  = null;   // period filter from pivot click
+let activePartner = null;   // partner filter from dropdown
+let groupByActive = false;
+
+// ── Build partner list from ALL rows (once on load) ───────────────────────────
+const allDetailRows = Array.from(document.querySelectorAll('tr.detail-row'));
+
+function getAllPartners() {
+  const map = new Map(); // partner -> {inflow, outflow, count}
+  allDetailRows.forEach(r => {
+    const p   = r.dataset.partner || '—';
+    const amt = parseFloat(r.dataset.amount) || 0;
+    if (!map.has(p)) map.set(p, {inflow:0, outflow:0, count:0});
+    const e = map.get(p);
+    e.count++;
+    if (amt >= 0) e.inflow  += amt;
+    else          e.outflow += amt;
+  });
+  return [...map.entries()].sort((a,b) => a[0].localeCompare(b[0]));
+}
+
+// ── Partner dropdown ──────────────────────────────────────────────────────────
+function fmt(n) { return Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+function buildDropdown(query) {
+  const list    = document.getElementById('partner-list');
+  const partners = getAllPartners().filter(([name]) =>
+    !query || name.toLowerCase().includes(query.toLowerCase())
+  );
+  list.innerHTML = '';
+
+  if (!partners.length) {
+    list.innerHTML = '<div style="padding:.6rem 1rem;color:var(--muted);font-size:.8rem;">No partners found</div>';
+    return;
+  }
+
+  // "All partners" option
+  const allEl = document.createElement('div');
+  allEl.className = 'pdrop-item';
+  allEl.innerHTML = `<span style="font-weight:600;color:var(--text);">All Partners</span><span style="color:var(--muted);font-size:.72rem;">${allDetailRows.length} lines</span>`;
+  allEl.onclick = () => { clearPartnerFilter(); hideDropdown(); };
+  list.appendChild(allEl);
+
+  partners.forEach(([name, data]) => {
+    const net      = data.inflow + data.outflow;
+    const netColor = net >= 0 ? '#00C48C' : '#FF5252';
+    const el       = document.createElement('div');
+    el.className   = 'pdrop-item';
+    el.innerHTML   = `
+      <span style="color:var(--text);font-size:.82rem;max-width:160px;overflow:hidden;text-overflow:ellipsis;">${name}</span>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.1rem;">
+        <span style="font-family:var(--mono);font-size:.72rem;color:#00C48C;">+${fmt(data.inflow)}</span>
+        <span style="font-family:var(--mono);font-size:.72rem;color:${netColor};">${fmt(net)}</span>
+        <span style="font-size:.65rem;color:var(--muted);">${data.count} line${data.count!==1?'s':''}</span>
+      </div>
+    `;
+    el.onclick = () => selectPartner(name);
+    list.appendChild(el);
+  });
+}
+
+function showDropdown() {
+  buildDropdown(document.getElementById('partner-search').value);
+  document.getElementById('partner-dropdown').style.display = 'block';
+}
+
+function hideDropdown() {
+  document.getElementById('partner-dropdown').style.display = 'none';
+}
+
+function onPartnerSearch(val) {
+  buildDropdown(val);
+  document.getElementById('partner-dropdown').style.display = 'block';
+}
+
+function selectPartner(name) {
+  activePartner = name;
+  document.getElementById('partner-search').value = name;
+  hideDropdown();
+  document.getElementById('clear-partner-btn').style.display = 'inline';
+  document.getElementById('partner-badge').style.display     = 'inline';
+  applyFiltersAndGrouping();
+}
+
+function clearPartnerFilter() {
+  activePartner = null;
+  document.getElementById('partner-search').value            = '';
+  document.getElementById('clear-partner-btn').style.display = 'none';
+  document.getElementById('partner-badge').style.display     = 'none';
+  applyFiltersAndGrouping();
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', e => {
+  if (!document.getElementById('partner-filter-wrap').contains(e.target)) hideDropdown();
+});
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+function showTab(id, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active-tab'));
+  document.getElementById('panel-' + id).classList.add('active');
+  btn.classList.add('active-tab');
+  applyFiltersAndGrouping();
+}
+
+// ── Period filter from pivot ──────────────────────────────────────────────────
+function filterDetail(period) {
+  activePeriod = period;
+  document.querySelectorAll('#pivot-table tbody tr').forEach(r => {
+    r.style.background = (r.dataset.period === period) ? 'rgba(74,144,217,.1)' : '';
+  });
+  document.getElementById('detail-title').textContent   = period;
+  document.getElementById('detail-badge').style.display = 'inline';
+  document.getElementById('clear-btn').style.display    = 'inline';
+  applyFiltersAndGrouping();
+}
+
+function clearFilter() {
+  activePeriod = null;
+  document.querySelectorAll('#pivot-table tbody tr').forEach(r => r.style.background = '');
+  document.getElementById('detail-title').textContent   = 'All Transactions';
+  document.getElementById('detail-badge').style.display = 'none';
+  document.getElementById('clear-btn').style.display    = 'none';
+  applyFiltersAndGrouping();
+}
+
+// ── Group by Partner ──────────────────────────────────────────────────────────
+function toggleGroupBy() {
+  groupByActive = !groupByActive;
+  const btn = document.getElementById('group-btn');
+  btn.style.borderColor = groupByActive ? 'var(--amber)' : '';
+  btn.style.color       = groupByActive ? 'var(--amber)' : '';
+  updateExpandCollapseButtons();
+  applyFiltersAndGrouping();
+}
+
+// ── Core: apply all active filters + optional grouping ────────────────────────
+function applyFiltersAndGrouping() {
+  const panel = document.querySelector('.tab-panel.active');
+  if (!panel) return;
+
+  const tbody = panel.querySelector('tbody');
+  const rows  = Array.from(panel.querySelectorAll('tr.detail-row'));
+
+  // Remove old group headers
+  panel.querySelectorAll('tr.partner-group-hdr').forEach(r => r.remove());
+
+  // Determine which rows pass filters
+  const visible = rows.filter(r => {
+    const periodOk  = !activePeriod  || r.dataset.period  === activePeriod;
+    const partnerOk = !activePartner || r.dataset.partner === activePartner;
+    return periodOk && partnerOk;
+  });
+  const hiddenSet = new Set(rows.filter(r => !visible.includes(r)));
+
+  if (!groupByActive) {
+    // Flat view — just show/hide in place
+    rows.forEach(r => r.style.display = hiddenSet.has(r) ? 'none' : '');
+    return;
+  }
+
+  // ── Grouped view ─────────────────────────────────────────────────────────
+  // Hide all rows first
+  rows.forEach(r => r.style.display = 'none');
+  if (!visible.length) return;
+
+  // Build ordered partner map (preserve first-seen order for stable sort)
+  const partnerMap = new Map();
+  visible.forEach(r => {
+    const p   = r.dataset.partner || '—';
+    const amt = parseFloat(r.dataset.amount) || 0;
+    if (!partnerMap.has(p)) partnerMap.set(p, { inflow: 0, outflow: 0, rows: [] });
+    const e = partnerMap.get(p);
+    if (amt >= 0) e.inflow  += amt;
+    else          e.outflow += amt;
+    e.rows.push(r);
+  });
+
+  // Sort partners alphabetically
+  const sorted = [...partnerMap.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  const isAll  = panel.id === 'panel-all';
+
+  // Column keys in order (must match thead data-col order)
+  const colKeys = isAll
+    ? ['partner','period','due','type','co','entry','journal','cur','inflow','outflow','amount']
+    : ['partner','period','due','co','entry','journal','cur','inflow','outflow','amount'];
+
+  // ** KEY FIX: physically append header + all rows in order **
+  sorted.forEach(([partner, data]) => {
+    const net      = data.inflow + data.outflow;
+    const netColor = net >= 0 ? '#00C48C' : '#FF5252';
+
+    // Build one <td> per column — mirrors data-col exactly so hidden cols stay hidden
+    const hdr = document.createElement('tr');
+    hdr.className       = 'partner-group-hdr';
+    hdr.dataset.partner = partner;
+
+    colKeys.forEach((key, idx) => {
+      const td = document.createElement('td');
+      td.dataset.col    = key;
+      td.style.display  = colVisible[key] ? '' : 'none';
+
+      if (key === 'partner') {
+        // Partner name + count in the first cell
+        td.style.cssText += 'padding:.5rem .9rem;font-family:var(--font);font-size:.82rem;font-weight:600;color:var(--text);';
+        td.innerHTML = `
+          <span class="expand-icon" style="margin-right:.5rem;display:inline-block;transition:transform .2s;">▾</span>
+          ${partner}
+          <span style="margin-left:.5rem;font-size:.68rem;color:var(--muted);font-weight:400;">${data.rows.length} invoice${data.rows.length !== 1 ? 's' : ''}</span>
+        `;
+      } else if (key === 'inflow') {
+        td.style.cssText += 'text-align:right;padding:.5rem .9rem;font-family:var(--mono);font-size:.8rem;font-weight:600;color:#00C48C;';
+        td.textContent = fmt(data.inflow);
+      } else if (key === 'outflow') {
+        td.style.cssText += 'text-align:right;padding:.5rem .9rem;font-family:var(--mono);font-size:.8rem;font-weight:600;color:#FF5252;';
+        td.textContent = data.outflow < 0 ? fmt(Math.abs(data.outflow)) : '—';
+      } else if (key === 'amount') {
+        td.style.cssText += `text-align:right;padding:.5rem .9rem;font-family:var(--mono);font-size:.8rem;font-weight:700;color:${netColor};`;
+        td.textContent = fmt(net);
+      } else {
+        // Empty spacer cell for all other columns
+        td.style.padding = '.5rem .9rem';
+      }
+      hdr.appendChild(td);
+    });
+
+    // Append header then every row for this partner — all contiguous in the DOM
+    tbody.appendChild(hdr);
+    data.rows.forEach(r => {
+      r.style.display = '';
+      tbody.appendChild(r);
+    });
+
+    // Collapse toggle — walk DOM siblings (robust with Thai/special chars)
+    hdr.addEventListener('click', () => {
+      const isNowCollapsed = !groupCollapsed.get(partner);
+      groupCollapsed.set(partner, isNowCollapsed);
+      hdr.querySelector('.expand-icon').style.transform = isNowCollapsed ? 'rotate(-90deg)' : '';
+      let sibling = hdr.nextElementSibling;
+      while (sibling && sibling.classList.contains('detail-row')) {
+        sibling.style.display = isNowCollapsed ? 'none' : '';
+        sibling = sibling.nextElementSibling;
+      }
+    });
+  });
+}
+
+// ── Expand / Collapse All ─────────────────────────────────────────────────────
+// Track per-group collapsed state: key = partner name
+const groupCollapsed = new Map();
+
+function expandAll() {
+  const panel = document.querySelector('.tab-panel.active');
+  if (!panel) return;
+  // Walk every group header and show all consecutive detail-row siblings after it
+  panel.querySelectorAll('tr.partner-group-hdr').forEach(hdr => {
+    groupCollapsed.set(hdr.dataset.partner, false);
+    hdr.querySelector('.expand-icon').style.transform = '';
+    let sibling = hdr.nextElementSibling;
+    while (sibling && sibling.classList.contains('detail-row')) {
+      sibling.style.display = '';
+      sibling = sibling.nextElementSibling;
+    }
+  });
+}
+
+function collapseAll() {
+  const panel = document.querySelector('.tab-panel.active');
+  if (!panel) return;
+  panel.querySelectorAll('tr.partner-group-hdr').forEach(hdr => {
+    groupCollapsed.set(hdr.dataset.partner, true);
+    hdr.querySelector('.expand-icon').style.transform = 'rotate(-90deg)';
+    let sibling = hdr.nextElementSibling;
+    while (sibling && sibling.classList.contains('detail-row')) {
+      sibling.style.display = 'none';
+      sibling = sibling.nextElementSibling;
+    }
+  });
+}
+
+function updateExpandCollapseButtons() {
+  const show = groupByActive;
+  document.getElementById('expand-all-btn').style.display   = show ? '' : 'none';
+  document.getElementById('collapse-all-btn').style.display = show ? '' : 'none';
+}
+
+// ── Column visibility ─────────────────────────────────────────────────────────
+// Column definitions: key matches data-col attribute
+const COL_DEFS = [
+  { key: 'partner',  label: 'Partner'         },
+  { key: 'period',   label: 'Period'           },
+  { key: 'due',      label: 'Due Date'         },
+  { key: 'type',     label: 'Type (All tab)'   },
+  { key: 'co',       label: 'Co.'              },
+  { key: 'entry',    label: 'Entry Ref'        },
+  { key: 'journal',  label: 'Journal Entry'    },
+  { key: 'cur',      label: 'Orig. Currency'   },
+  { key: 'inflow',   label: 'Inflow (฿)'       },
+  { key: 'outflow',  label: 'Outflow (฿)'      },
+  { key: 'amount',   label: 'Amount (฿ THB)'   },
+];
+
+// Start with all visible
+const colVisible = Object.fromEntries(COL_DEFS.map(c => [c.key, true]));
+
+let colPickerOpen = false;
+
+function toggleColPicker() {
+  colPickerOpen = !colPickerOpen;
+  const picker = document.getElementById('col-picker');
+  if (colPickerOpen) {
+    buildColPicker();
+    picker.style.display = 'block';
+    // Position below the button using fixed coords
+    const btn  = document.getElementById('col-picker-btn');
+    const rect = btn.getBoundingClientRect();
+    picker.style.top   = (rect.bottom + 6) + 'px';
+    picker.style.right = (window.innerWidth - rect.right) + 'px';
+  } else {
+    picker.style.display = 'none';
+  }
+}
+
+function buildColPicker() {
+  const list = document.getElementById('col-picker-list');
+  list.innerHTML = '';
+  COL_DEFS.forEach(({ key, label }) => {
+    const row = document.createElement('label');
+    row.style.cssText = 'display:flex;align-items:center;gap:.5rem;padding:.35rem 1rem;cursor:pointer;font-size:.8rem;color:var(--text);transition:background .1s;';
+    row.onmouseenter = () => row.style.background = 'rgba(74,144,217,.08)';
+    row.onmouseleave = () => row.style.background = '';
+    const cb = document.createElement('input');
+    cb.type    = 'checkbox';
+    cb.checked = colVisible[key];
+    cb.style.cssText = 'accent-color:var(--green);width:14px;height:14px;cursor:pointer;';
+    cb.onchange = () => { colVisible[key] = cb.checked; applyColVisibility(); };
+    row.appendChild(cb);
+    row.appendChild(document.createTextNode(label));
+    list.appendChild(row);
+  });
+}
+
+function applyColVisibility() {
+  // Apply display:none to all th/td cells including dynamically created group headers
+  COL_DEFS.forEach(({ key }) => {
+    const display = colVisible[key] ? '' : 'none';
+    document.querySelectorAll(`[data-col="${key}"]`).forEach(el => {
+      el.style.display = display;
+    });
+  });
+
+  // Force table reflow so remaining columns redistribute width correctly
+  document.querySelectorAll('.detail-scroll table').forEach(tbl => {
+    tbl.style.tableLayout = 'fixed';
+    tbl.style.width = 'auto';
+    requestAnimationFrame(() => {
+      tbl.style.tableLayout = 'auto';
+      tbl.style.width = '100%';
+    });
+  });
+}
+
+function setAllCols(visible) {
+  COL_DEFS.forEach(({ key }) => colVisible[key] = visible);
+  applyColVisibility();
+  buildColPicker(); // refresh checkboxes
+}
+
+// Close col picker when clicking outside
+document.addEventListener('click', e => {
+  if (!e.target.closest('#col-picker') && !e.target.closest('#col-picker-btn')) {
+    colPickerOpen = false;
+    document.getElementById('col-picker').style.display = 'none';
+  }
+});
+
+// ── Column sort ───────────────────────────────────────────────────────────────
+// Track sort state per panel: { col, dir }
+const sortState = {};
+
+function sortTable(th, panelId) {
+  const col     = th.dataset.sort;
+  const current = sortState[panelId] || { col: null, dir: 'asc' };
+  const dir     = (current.col === col && current.dir === 'asc') ? 'desc' : 'asc';
+  sortState[panelId] = { col, dir };
+
+  // Update header indicators
+  th.closest('thead').querySelectorAll('th').forEach(h => {
+    h.classList.remove('sort-asc', 'sort-desc');
+    const icon = h.querySelector('.sort-icon');
+    if (icon) icon.textContent = '⇅';
+  });
+  th.classList.add(dir === 'asc' ? 'sort-asc' : 'sort-desc');
+  const icon = th.querySelector('.sort-icon');
+  if (icon) icon.textContent = '';
+
+  const tbody = document.getElementById(`tbody-${panelId}`);
+  if (!tbody) return;
+
+  // Numeric cols
+  const numericCols = new Set(['inflow', 'outflow', 'amount']);
+
+  // Get sort value from a row
+  function getVal(row) {
+    if (col === 'due')     return row.dataset.due    || '';
+    if (col === 'period')  return row.dataset.period || '';
+    if (col === 'partner') return row.dataset.partner || '';
+    if (col === 'type')    return row.dataset.type   || '';
+    if (col === 'co')      return row.dataset.company || '';
+    if (numericCols.has(col)) return parseFloat(row.dataset.val) || 0;
+    // For text cols (entry, journal, cur) read the td text
+    const td = row.querySelector(`[data-col="${col}"]`);
+    return td ? td.textContent.trim() : '';
+  }
+
+  if (groupByActive) {
+    // ── Grouped mode: sort within each group independently ──────────────────
+    // Remove and re-insert group headers with their rows re-sorted
+    const groups = [];
+    let curHdr = null, curRows = [];
+    Array.from(tbody.children).forEach(el => {
+      if (el.classList.contains('partner-group-hdr')) {
+        if (curHdr) groups.push({ hdr: curHdr, rows: curRows });
+        curHdr  = el;
+        curRows = [];
+      } else if (el.classList.contains('detail-row')) {
+        curRows.push(el);
+      }
+    });
+    if (curHdr) groups.push({ hdr: curHdr, rows: curRows });
+
+    // Sort groups themselves by the col value of their first row (or partner name)
+    groups.sort((a, b) => {
+      const va = col === 'partner' ? (a.hdr.dataset.partner || '') : (a.rows[0] ? getVal(a.rows[0]) : '');
+      const vb = col === 'partner' ? (b.hdr.dataset.partner || '') : (b.rows[0] ? getVal(b.rows[0]) : '');
+      return compare(va, vb, numericCols.has(col)) * (dir === 'asc' ? 1 : -1);
+    });
+
+    // Sort rows within each group
+    groups.forEach(({ hdr, rows }) => {
+      rows.sort((a, b) => compare(getVal(a), getVal(b), numericCols.has(col)) * (dir === 'asc' ? 1 : -1));
+      tbody.appendChild(hdr);
+      rows.forEach(r => tbody.appendChild(r));
+    });
+
+  } else {
+    // ── Flat mode: sort all detail rows ──────────────────────────────────────
+    const rows = Array.from(tbody.querySelectorAll('tr.detail-row'));
+    rows.sort((a, b) => compare(getVal(a), getVal(b), numericCols.has(col)) * (dir === 'asc' ? 1 : -1));
+    rows.forEach(r => tbody.appendChild(r));
+  }
+}
+
+function compare(a, b, isNumeric) {
+  if (isNumeric) return (Number(a) || 0) - (Number(b) || 0);
+  return String(a).localeCompare(String(b), 'th', { sensitivity: 'base' });
+}
+
+// ── Company toggle ────────────────────────────────────────────────────────────
+function setCompany(val, btn) {
+  document.getElementById('company-input').value = val;
+  document.querySelectorAll('.ctab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+// ── Group days shortcuts ──────────────────────────────────────────────────────
+function setDays(n) { document.getElementById('group-days-input').value = n; }
+
+// ── Keep export/API links in sync ────────────────────────────────────────────
+const XL_BASE  = "{% url 'cashflow:export_excel' %}";
+const PDF_BASE = "{% url 'cashflow:export_pdf' %}";
+const API_BASE = "{% url 'cashflow:api' %}";
+
+function syncLinks() {
+  const p = new URLSearchParams();
+  p.set('date_from',       document.querySelector('[name=date_from]').value);
+  p.set('date_to',         document.querySelector('[name=date_to]').value);
+  p.set('company',         document.getElementById('company-input').value);
+  p.set('group_days',      document.getElementById('group-days-input').value);
+  p.set('opening_balance', document.getElementById('opening-balance-input').value || '0');
+  const qs = '?' + p.toString();
+  document.getElementById('xl-link').href  = XL_BASE  + qs;
+  document.getElementById('pdf-link').href = PDF_BASE + qs;
+  document.getElementById('api-link').href = API_BASE + qs;
+}
+
+// Sync on any filter input change
+document.getElementById('filter-form').addEventListener('input', syncLinks);
+
+// Sync immediately on page load from current URL params
+(function initLinks() {
+  const url = new URLSearchParams(window.location.search);
+  if (url.get('date_from'))       document.querySelector('[name=date_from]').value        = url.get('date_from');
+  if (url.get('date_to'))         document.querySelector('[name=date_to]').value          = url.get('date_to');
+  if (url.get('company'))         document.getElementById('company-input').value         = url.get('company');
+  if (url.get('group_days'))      document.getElementById('group-days-input').value      = url.get('group_days');
+  if (url.get('opening_balance')) document.getElementById('opening-balance-input').value = url.get('opening_balance');
+  syncLinks();
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,34 @@
+
+
+
+# Virtual Environment
+env/
+.env/
+venv/
+ENV/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Django sensitive/local files
+.env
+db.sqlite3
+local_settings.py
+core/settings.py
+local.py
+core/settings/local.py
+db.sqlite3
+
+**/core/settings.py
+**/core/settings/local.py
+
+# Media and Static (usually ignored in dev)
+media/
+staticfiles/
+
+# IDEs
+.vscode/
+.idea/
